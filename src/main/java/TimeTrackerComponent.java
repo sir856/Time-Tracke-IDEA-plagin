@@ -66,6 +66,7 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
 
     private long idleThresholdMs;
     private boolean stopWhenIdleRatherThanPausing;
+    private int autoCountIdleSeconds;
 
     private long naggedAbout = 0;
 
@@ -143,7 +144,9 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
                 break;
             }
             case IDLE: {
-                if (msInState > 1000) {
+                if (msToS(msInState) <= autoCountIdleSeconds) {
+                    addTotalTimeMs(msInState);
+                } else if (msInState > 1000) {
                     final Project project = project();
                     if (project != null) {
                         final Notification notification = IDLE_NOTIFICATION_GROUP.createNotification(
@@ -260,8 +263,8 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
         ApplicationManager.getApplication().invokeLater(() -> {
             synchronized (this) {
                 this.totalTimeMs = state.totalTimeSeconds * 1000L;
-               //setAutoStart(state.autoStart);
                 setIdleThresholdMs(state.idleThresholdMs);
+                setAutoCountIdleSeconds(state.autoCountIdleSeconds);
             }
             repaintWidget(true);
         });
@@ -327,6 +330,8 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
 
         result.idleThresholdMs = idleThresholdMs;
         result.naggedAbout = naggedAbout;
+        result.autoCountIdleSeconds = autoCountIdleSeconds;
+
         return result;
     }
 
@@ -403,5 +408,13 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
 
 
         return res;
+    }
+
+    public int getAutoCountIdleSeconds() {
+        return autoCountIdleSeconds;
+    }
+
+    public synchronized void setAutoCountIdleSeconds(int autoCountIdleSeconds) {
+        this.autoCountIdleSeconds = autoCountIdleSeconds;
     }
 }

@@ -81,5 +81,13 @@ final class TimeTrackerPopupContent extends Box {
             });
             otherButtons.add(saveDefaults);
         }
+
+        {
+            optionsPanel.add(new JLabel("Auto-count pauses shorter than (sec):", JLabel.RIGHT));
+            final JSpinner autoCountSpinner = new JSpinner(new SpinnerNumberModel(component.getAutoCountIdleSeconds(), 0, Integer.MAX_VALUE, 10));
+            optionsPanel.add(autoCountSpinner);
+            autoCountSpinner.addChangeListener(ce ->
+                    component.setAutoCountIdleSeconds(((Number) autoCountSpinner.getValue()).intValue()));
+        }
     }
 }
