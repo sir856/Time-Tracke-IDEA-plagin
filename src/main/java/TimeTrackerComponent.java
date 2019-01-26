@@ -68,6 +68,7 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
     private boolean stopWhenIdleRatherThanPausing;
     private int autoCountIdleSeconds;
     private boolean pauseOtherTrackerInstances;
+    private boolean autoStart;
 
     private long naggedAbout = 0;
 
@@ -79,6 +80,44 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
     private static final long TICK_DELAY = 1;
     private static final TimeUnit TICK_DELAY_UNIT = TimeUnit.SECONDS;
     private static final long TICK_JUMP_DETECTION_THRESHOLD_MS = TICK_DELAY_UNIT.toMillis(TICK_DELAY * 20);
+
+    private DocumentListener autoStartDocumentListener = null;
+    private final FileDocumentManagerListener saveDocumentListener = new FileDocumentManagerListener() {
+        @Override
+        public void beforeAllDocumentsSaving() {
+            saveTime();
+        }
+
+        @Override
+        public void beforeDocumentSaving(@NotNull Document document) {
+            saveTime();
+        }
+
+        // Default methods in 2018.3, but would probably crash in earlier versions
+        @Override
+        public void beforeFileContentReload(@NotNull VirtualFile file, @NotNull Document document) { }
+
+        @Override
+        public void fileWithNoDocumentChanged(@NotNull VirtualFile file) { }
+
+        @Override
+        public void fileContentReloaded(@NotNull VirtualFile file, @NotNull Document document) { }
+
+        @Override
+        public void fileContentLoaded(@NotNull VirtualFile file, @NotNull Document document) { }
+
+        @Override
+        public void unsavedDocumentsDropped() { }
+    };
+
+    private synchronized void saveTime() {
+        if (status == Status.RUNNING) {
+            final long now = System.currentTimeMillis();
+            final long msInState = Math.max(0L, now - statusStartedMs);
+            statusStartedMs = now;
+            addTotalTimeMs(msInState);
+        }
+    }
 
     private static final Set<TimeTrackerComponent> ALL_OPENED_TRACKERS = ContainerUtil.newConcurrentSet();
 
@@ -277,6 +316,7 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
                 setIdleThresholdMs(state.idleThresholdMs);
                 setAutoCountIdleSeconds(state.autoCountIdleSeconds);
                 setPauseOtherTrackerInstances(state.pauseOtherTrackerInstances);
+                setAutoStart(state.autoStart);
             }
             repaintWidget(true);
         });
@@ -286,12 +326,19 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
     public synchronized void initComponent() {
         if (DEBUG_LIFECYCLE) LOG.log(Level.INFO, "initComponent() "+this);
         ALL_OPENED_TRACKERS.add(this);
+        Extensions.getArea(null).getExtensionPoint(FileDocumentManagerListener.EP_NAME)
+                .registerExtension(saveDocumentListener);
     }
 
     @Override
     public synchronized void disposeComponent() {
         if (DEBUG_LIFECYCLE) LOG.log(Level.INFO, "disposeComponent() "+this);
         ALL_OPENED_TRACKERS.remove(this);
+        Extensions.getArea(null).getExtensionPoint(FileDocumentManagerListener.EP_NAME)
+                .unregisterExtension(saveDocumentListener);
+
+        updateAutoStartListener(false);
+
         setStatus(Status.STOPPED);
     }
 
@@ -357,6 +404,7 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
         result.naggedAbout = naggedAbout;
         result.autoCountIdleSeconds = autoCountIdleSeconds;
         result.pauseOtherTrackerInstances = pauseOtherTrackerInstances;
+        result.autoStart = autoStart;
 
         return result;
     }
@@ -466,5 +514,41 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
             addTotalTimeMs(milliseconds);
         }
         repaintWidget(false);
+    }
+
+    public boolean isAutoStart() {
+        return autoStart;
+    }
+
+    public synchronized void setAutoStart(boolean autoStart) {
+        this.autoStart = autoStart;
+        updateAutoStartListener(autoStart);
+    }
+
+    private void updateAutoStartListener(boolean enabled) {
+        final EditorEventMulticaster editorEventMulticaster = EditorFactory.getInstance().getEventMulticaster();
+        if (autoStartDocumentListener != null) {
+            editorEventMulticaster.removeDocumentListener(autoStartDocumentListener);
+            autoStartDocumentListener = null;
+        }
+        if (enabled) {
+            editorEventMulticaster.addDocumentListener(autoStartDocumentListener = new DocumentListener() {
+                @Override
+                public void documentChanged(@NotNull DocumentEvent e) {
+                    if (getStatus() == Status.RUNNING) return;
+                    //getSelectedTextEditor() must be run from event dispatch thread
+                    EventQueue.invokeLater(() -> {
+                        final Project project = project();
+                        if (project == null) return;
+
+                        final Editor selectedTextEditor = FileEditorManager.getInstance(project).getSelectedTextEditor();
+                        if (selectedTextEditor == null) return;
+                        if(e.getDocument().equals(selectedTextEditor.getDocument())) {
+                            setStatus(Status.RUNNING);
+                        }
+                    });
+                }
+            });
+        }
     }
 }

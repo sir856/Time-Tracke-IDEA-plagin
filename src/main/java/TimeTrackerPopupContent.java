@@ -126,5 +126,17 @@ final class TimeTrackerPopupContent extends Box {
             }
             this.add(timeButtons);
         }
+
+        {
+            optionsPanel.add(new JLabel("Auto start on typing:", JLabel.RIGHT));
+            final JCheckBox autoStartCheckBox = new JCheckBox();
+            autoStartCheckBox.setHorizontalAlignment(SwingConstants.CENTER);
+            autoStartCheckBox.setVerticalAlignment(SwingConstants.CENTER);
+            autoStartCheckBox.setSelected(component.isAutoStart());
+            optionsPanel.add(autoStartCheckBox);
+            autoStartCheckBox.addActionListener(al -> {
+                component.setAutoStart(autoStartCheckBox.isSelected());
+            });
+        }
     }
 }
