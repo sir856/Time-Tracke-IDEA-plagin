@@ -71,6 +71,8 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
 
     private long naggedAbout = 0;
 
+    static final long RESET_TIME_TO_ZERO = Long.MIN_VALUE;
+
     @Nullable
     private ScheduledFuture<?> ticker;
 
@@ -454,5 +456,15 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
         if (status != Status.STOPPED) {
             setStatus(Status.IDLE);
         }
+    }
+
+    public synchronized void addOrResetTotalTimeMs(long milliseconds) {
+        if (milliseconds == RESET_TIME_TO_ZERO) {
+            totalTimeMs = 0L;
+            statusStartedMs = System.currentTimeMillis();
+        } else {
+            addTotalTimeMs(milliseconds);
+        }
+        repaintWidget(false);
     }
 }

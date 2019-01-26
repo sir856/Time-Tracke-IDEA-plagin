@@ -101,5 +101,30 @@ final class TimeTrackerPopupContent extends Box {
                 component.setPauseOtherTrackerInstances(autoPauseCheckBox.isSelected());
             });
         }
+
+        {
+            final Box timeButtons = Box.createHorizontalBox();
+
+            final JButton timeResetButton = new JButton("Reset time");
+            timeResetButton.setToolTipText("Completely reset tracked time, including git time, if enabled");
+            timeResetButton.addActionListener(e1 -> component.addOrResetTotalTimeMs(TimeTrackerComponent.RESET_TIME_TO_ZERO));
+            timeButtons.add(timeResetButton);
+            timeButtons.add(Box.createHorizontalGlue());
+
+            {// +time buttons
+                final int[] timesSec = {-3600, -60 * 5, -30, 30, 60 * 5, 3600};
+                final String[] labels = {"-1h", "-5m", "-30s", "+30s", "+5m", "+1h"};
+
+                for (int i = 0; i < labels.length; i++) {
+                    final int timeChange = timesSec[i];
+                    final JButton timeButton = new JButton(labels[i]);
+                    timeButton.addActionListener(e1 -> {
+                        component.addOrResetTotalTimeMs(timeChange * 1000);
+                    });
+                    timeButtons.add(timeButton);
+                }
+            }
+            this.add(timeButtons);
+        }
     }
 }
