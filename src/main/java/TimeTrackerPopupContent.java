@@ -89,5 +89,17 @@ final class TimeTrackerPopupContent extends Box {
             autoCountSpinner.addChangeListener(ce ->
                     component.setAutoCountIdleSeconds(((Number) autoCountSpinner.getValue()).intValue()));
         }
+
+        {
+            optionsPanel.add(new JLabel("Pause other IDE windows when this one activates:", JLabel.RIGHT));
+            final JCheckBox autoPauseCheckBox = new JCheckBox();
+            autoPauseCheckBox.setSelected(component.isPauseOtherTrackerInstances());
+            autoPauseCheckBox.setHorizontalAlignment(SwingConstants.CENTER);
+            autoPauseCheckBox.setVerticalAlignment(SwingConstants.CENTER);
+            optionsPanel.add(autoPauseCheckBox);
+            autoPauseCheckBox.addActionListener(al -> {
+                component.setPauseOtherTrackerInstances(autoPauseCheckBox.isSelected());
+            });
+        }
     }
 }

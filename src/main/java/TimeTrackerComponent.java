@@ -67,6 +67,7 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
     private long idleThresholdMs;
     private boolean stopWhenIdleRatherThanPausing;
     private int autoCountIdleSeconds;
+    private boolean pauseOtherTrackerInstances;
 
     private long naggedAbout = 0;
 
@@ -185,6 +186,14 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
         switch (status) {
             case RUNNING: {
 
+                if (pauseOtherTrackerInstances) {
+                    ALL_OPENED_TRACKERS.forEach(tracker -> {
+                        if (tracker != this) {
+                            tracker.otherComponentStarted();
+                        }
+                    });
+                }
+
                 ticker = EdtExecutorService.getScheduledExecutorInstance().scheduleWithFixedDelay(this::tick, TICK_DELAY, TICK_DELAY, TICK_DELAY_UNIT);
             }
             break;
@@ -265,9 +274,23 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
                 this.totalTimeMs = state.totalTimeSeconds * 1000L;
                 setIdleThresholdMs(state.idleThresholdMs);
                 setAutoCountIdleSeconds(state.autoCountIdleSeconds);
+                setPauseOtherTrackerInstances(state.pauseOtherTrackerInstances);
             }
             repaintWidget(true);
         });
+    }
+
+    @Override
+    public synchronized void initComponent() {
+        if (DEBUG_LIFECYCLE) LOG.log(Level.INFO, "initComponent() "+this);
+        ALL_OPENED_TRACKERS.add(this);
+    }
+
+    @Override
+    public synchronized void disposeComponent() {
+        if (DEBUG_LIFECYCLE) LOG.log(Level.INFO, "disposeComponent() "+this);
+        ALL_OPENED_TRACKERS.remove(this);
+        setStatus(Status.STOPPED);
     }
 
     @Override
@@ -331,6 +354,7 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
         result.idleThresholdMs = idleThresholdMs;
         result.naggedAbout = naggedAbout;
         result.autoCountIdleSeconds = autoCountIdleSeconds;
+        result.pauseOtherTrackerInstances = pauseOtherTrackerInstances;
 
         return result;
     }
@@ -416,5 +440,19 @@ public final class TimeTrackerComponent implements ProjectComponent, PersistentS
 
     public synchronized void setAutoCountIdleSeconds(int autoCountIdleSeconds) {
         this.autoCountIdleSeconds = autoCountIdleSeconds;
+    }
+
+    public boolean isPauseOtherTrackerInstances() {
+        return pauseOtherTrackerInstances;
+    }
+
+    public synchronized void setPauseOtherTrackerInstances(boolean pauseOtherTrackerInstances) {
+        this.pauseOtherTrackerInstances = pauseOtherTrackerInstances;
+    }
+
+    private synchronized void otherComponentStarted() {
+        if (status != Status.STOPPED) {
+            setStatus(Status.IDLE);
+        }
     }
 }
